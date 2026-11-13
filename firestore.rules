@@ -1,0 +1,496 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        ('email' in request.auth.token &&
+         'email_verified' in request.auth.token &&
+         request.auth.token.email == 'moizbro108@gmail.com' &&
+         request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60 &&
+             data.email is string && data.email.size() <= 120 &&
+             data.coinBalance is int && data.coinBalance >= 0 && data.coinBalance <= 100000000 &&
+             data.totalDonatedCoins is int && data.totalDonatedCoins >= 0 && data.totalDonatedCoins <= 100000000 &&
+             data.totalMoneyReceived is int && data.totalMoneyReceived >= 0 && data.totalMoneyReceived <= 100000000 &&
+             data.favoriteRegions is list && data.favoriteRegions.size() <= 10 &&
+             (data.favoriteRegions.size() == 0 || data.favoriteRegions[0] is string) &&
+             data.acceptedTerms is bool &&
+             data.role == 'user' &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFavoriteName(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.originRegion is string && data.originRegion.size() >= 1 && data.originRegion.size() <= 40 &&
+             data.gender in ['Boy', 'Girl', 'Unisex'] &&
+             data.meaning is string && data.meaning.size() >= 1 && data.meaning.size() <= 240 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidRegionalName(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.script is string && data.script.size() <= 60 &&
+             data.pronunciation is string && data.pronunciation.size() <= 80 &&
+             data.originRegion is string && data.originRegion.size() >= 1 && data.originRegion.size() <= 40 &&
+             data.gender in ['Boy', 'Girl', 'Unisex'] &&
+             data.meaning is string && data.meaning.size() >= 2 && data.meaning.size() <= 250 &&
+             data.culturalNote is string && data.culturalNote.size() <= 300 &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 60 &&
+             data.status in ['approved', 'featured', 'pending'] &&
+             data.likesCount is int && data.likesCount >= 0 && data.likesCount <= 10000000 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidGiveaway(data) {
+      return data.title is string && data.title.size() >= 3 && data.title.size() <= 100 &&
+             data.description is string && data.description.size() >= 3 && data.description.size() <= 500 &&
+             data.prizeTitle is string && data.prizeTitle.size() >= 2 && data.prizeTitle.size() <= 100 &&
+             data.regionTag is string && data.regionTag.size() >= 1 && data.regionTag.size() <= 40 &&
+             data.imageUrl is string && data.imageUrl.size() <= 500 &&
+             data.presetArt is string && data.presetArt.size() <= 40 &&
+             data.entryCostCoins is int && data.entryCostCoins == 10 &&
+             data.maxEntries is int && data.maxEntries >= 0 && data.maxEntries <= 10000000 &&
+             data.entriesCount is int && data.entriesCount >= 0 &&
+             (data.maxEntries == 0 || data.entriesCount <= data.maxEntries) &&
+             data.status in ['active', 'completed', 'cancelled'] &&
+             data.winnerUserId is string && data.winnerUserId.size() <= 128 &&
+             data.winnerName is string && data.winnerName.size() <= 80 &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidGiveawayEntry(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 60 &&
+             data.giveawayId is string && data.giveawayId.size() >= 1 && data.giveawayId.size() <= 128 &&
+             data.ticketCount is int && data.ticketCount >= 1 && data.ticketCount <= 1000000 &&
+             data.coinsSpent is int && data.coinsSpent >= 10 && data.coinsSpent <= 10000000 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidDonationCampaign(data) {
+      return data.title is string && data.title.size() >= 3 && data.title.size() <= 100 &&
+             data.description is string && data.description.size() >= 3 && data.description.size() <= 500 &&
+             data.category is string && data.category.size() >= 2 && data.category.size() <= 40 &&
+             data.region is string && data.region.size() >= 2 && data.region.size() <= 40 &&
+             data.goalCoins is int && data.goalCoins >= 10 && data.goalCoins <= 100000000 &&
+             data.raisedCoins is int && data.raisedCoins >= 0 && data.raisedCoins <= 100000000 &&
+             data.status in ['active', 'completed'] &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidDonationRecord(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.donorName is string && data.donorName.size() >= 1 && data.donorName.size() <= 60 &&
+             data.campaignId is string && data.campaignId.size() >= 1 && data.campaignId.size() <= 128 &&
+             data.campaignTitle is string && data.campaignTitle.size() >= 2 && data.campaignTitle.size() <= 100 &&
+             data.coinsDonated is int && data.coinsDonated >= 1 && data.coinsDonated <= 100000000 &&
+             data.message is string && data.message.size() <= 200 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidPayoutProof(data) {
+      return data.title is string && data.title.size() >= 3 && data.title.size() <= 120 &&
+             data.proofType in ['Giveaway Proof', 'Money Payout', 'Helping Donation'] &&
+             data.recipientName is string && data.recipientName.size() >= 1 && data.recipientName.size() <= 80 &&
+             data.recipientUserId is string && data.recipientUserId.size() <= 128 &&
+             data.amountDisplay is string && data.amountDisplay.size() >= 1 && data.amountDisplay.size() <= 60 &&
+             data.pkrAmount is int && data.pkrAmount >= 0 && data.pkrAmount <= 100000000 &&
+             data.region is string && data.region.size() >= 1 && data.region.size() <= 40 &&
+             data.description is string && data.description.size() >= 3 && data.description.size() <= 500 &&
+             data.imageUrl is string && data.imageUrl.size() <= 500 &&
+             data.presetArt is string && data.presetArt.size() <= 40 &&
+             data.status == 'published' &&
+             data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidProblemReport(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.reporterName is string && data.reporterName.size() >= 1 && data.reporterName.size() <= 60 &&
+             data.category is string && data.category.size() >= 2 && data.category.size() <= 40 &&
+             data.subject is string && data.subject.size() >= 3 && data.subject.size() <= 120 &&
+             data.description is string && data.description.size() >= 5 && data.description.size() <= 1000 &&
+             data.status in ['open', 'in_review', 'resolved'] &&
+             data.adminReply is string && data.adminReply.size() <= 500 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCoinOrder(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.buyerName is string && data.buyerName.size() >= 1 && data.buyerName.size() <= 60 &&
+             data.packageName is string && data.packageName.size() >= 2 && data.packageName.size() <= 60 &&
+             data.coinsAmount is int && data.coinsAmount >= 1 && data.coinsAmount <= 10000000 &&
+             data.priceDisplay is string && data.priceDisplay.size() >= 1 && data.priceDisplay.size() <= 40 &&
+             data.whatsappRef is string && data.whatsappRef.size() >= 1 && data.whatsappRef.size() <= 120 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.adminNote is string && data.adminNote.size() <= 200 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAppConfig(data) {
+      return data.whatsappGroupUrl is string && data.whatsappGroupUrl.size() >= 8 && data.whatsappGroupUrl.size() <= 300 &&
+             data.whatsappAdminContact is string && data.whatsappAdminContact.size() >= 2 && data.whatsappAdminContact.size() <= 80 &&
+             data.termsTitle is string && data.termsTitle.size() >= 3 && data.termsTitle.size() <= 120 &&
+             data.termsBody is string && data.termsBody.size() >= 10 && data.termsBody.size() <= 8000 &&
+             data.giveawayPolicyBody is string && data.giveawayPolicyBody.size() >= 10 && data.giveawayPolicyBody.size() <= 8000 &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- 1. USERS & FAVORITES ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().role == 'user' &&
+                       incoming().coinBalance == 0 &&
+                       incoming().totalDonatedCoins == 0 &&
+                       incoming().totalMoneyReceived == 0 &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'email', 'coinBalance', 'totalDonatedCoins', 'totalMoneyReceived', 'favoriteRegions', 'acceptedTerms', 'role', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'coinBalance', 'totalDonatedCoins', 'totalMoneyReceived', 'favoriteRegions', 'acceptedTerms', 'role', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().role == existing().role && (
+                         isAdmin() || (
+                           isOwner(userId) &&
+                           incoming().coinBalance <= existing().coinBalance &&
+                           incoming().totalDonatedCoins >= existing().totalDonatedCoins &&
+                           incoming().totalMoneyReceived == existing().totalMoneyReceived &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'favoriteRegions', 'acceptedTerms', 'coinBalance', 'totalDonatedCoins', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isAdmin() && isValidId(userId);
+
+      match /favorite_names/{nameId} {
+        allow get: if isOwner(userId) && isValidId(nameId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(nameId) &&
+                         incoming().keys().hasAll(['name', 'originRegion', 'gender', 'meaning', 'createdAt']) &&
+                         incoming().keys().hasOnly(['name', 'originRegion', 'gender', 'meaning', 'createdAt']) &&
+                         isValidFavoriteName(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(nameId);
+      }
+    }
+
+    // --- 2. COMMUNITY REGIONAL NAMES ---
+    match /regional_names/{nameId} {
+      allow get: if isSignedIn() && isValidId(nameId) && (
+        existing().status in ['approved', 'featured'] ||
+        existing().userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.status in ['approved', 'featured'] ||
+        resource.data.userId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() &&
+                       isValidId(nameId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'approved' &&
+                       incoming().likesCount == 0 &&
+                       incoming().keys().hasAll(['name', 'script', 'pronunciation', 'originRegion', 'gender', 'meaning', 'culturalNote', 'userId', 'authorName', 'status', 'likesCount', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['name', 'script', 'pronunciation', 'originRegion', 'gender', 'meaning', 'culturalNote', 'userId', 'authorName', 'status', 'likesCount', 'createdAt', 'updatedAt']) &&
+                       isValidRegionalName(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(nameId) &&
+                       isValidRegionalName(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() || (
+                           incoming().likesCount >= 0 &&
+                           incoming().likesCount <= existing().likesCount + 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isSignedIn() && isValidId(nameId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // --- 3. GIVEAWAYS (ADMIN-ONLY CREATE, 1 TO INFINITY TICKET PURCHASES) ---
+    match /giveaways/{giveawayId} {
+      allow get: if isSignedIn() && isValidId(giveawayId) && (
+        existing().status in ['active', 'completed'] || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.status in ['active', 'completed']
+      );
+
+      allow create: if isAdmin() &&
+                       isValidId(giveawayId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().entriesCount == 0 &&
+                       incoming().status == 'active' &&
+                       incoming().keys().hasAll(['title', 'description', 'prizeTitle', 'regionTag', 'imageUrl', 'presetArt', 'entryCostCoins', 'maxEntries', 'entriesCount', 'status', 'winnerUserId', 'winnerName', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['title', 'description', 'prizeTitle', 'regionTag', 'imageUrl', 'presetArt', 'entryCostCoins', 'maxEntries', 'entriesCount', 'status', 'winnerUserId', 'winnerName', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       isValidGiveaway(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(giveawayId) &&
+                       isValidGiveaway(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() || (
+                           existing().status == 'active' &&
+                           incoming().entriesCount > existing().entriesCount &&
+                           (existing().maxEntries == 0 || incoming().entriesCount <= existing().maxEntries) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['entriesCount', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isAdmin() && isValidId(giveawayId);
+
+      match /entries/{entryId} {
+        allow get: if isSignedIn() && isValidId(giveawayId) && isValidId(entryId) && (
+          isAdmin() || existing().userId == request.auth.uid
+        );
+        allow list: if isSignedIn() && (
+          isAdmin() || resource.data.userId == request.auth.uid
+        );
+
+        allow create: if isSignedIn() &&
+                         isValidId(giveawayId) &&
+                         isValidId(entryId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().giveawayId == giveawayId &&
+                         incoming().keys().hasAll(['userId', 'userName', 'giveawayId', 'ticketCount', 'coinsSpent', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'userName', 'giveawayId', 'ticketCount', 'coinsSpent', 'createdAt']) &&
+                         isValidGiveawayEntry(incoming()) &&
+                         exists(/databases/$(database)/documents/giveaways/$(giveawayId)) &&
+                         get(/databases/$(database)/documents/giveaways/$(giveawayId)).data.status == 'active' &&
+                         incoming().coinsSpent == incoming().ticketCount * get(/databases/$(database)/documents/giveaways/$(giveawayId)).data.entryCostCoins &&
+                         (get(/databases/$(database)/documents/giveaways/$(giveawayId)).data.maxEntries == 0 ||
+                          get(/databases/$(database)/documents/giveaways/$(giveawayId)).data.entriesCount + incoming().ticketCount <= get(/databases/$(database)/documents/giveaways/$(giveawayId)).data.maxEntries) &&
+                         getAfter(/databases/$(database)/documents/giveaways/$(giveawayId)).data.entriesCount == get(/databases/$(database)/documents/giveaways/$(giveawayId)).data.entriesCount + incoming().ticketCount &&
+                         getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.coinBalance == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.coinBalance - incoming().coinsSpent;
+
+        allow update, delete: if isAdmin() && isValidId(giveawayId) && isValidId(entryId);
+      }
+    }
+
+    // --- 4. DONATION CAMPAIGNS (ADMIN-ONLY CREATE) & DONATION RECORDS (NO TICKETS, UNLIMITED COINS) ---
+    match /donation_campaigns/{campaignId} {
+      allow get: if isSignedIn() && isValidId(campaignId) && (
+        existing().status in ['active', 'completed'] || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.status in ['active', 'completed']
+      );
+
+      allow create: if isAdmin() &&
+                       isValidId(campaignId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().raisedCoins == 0 &&
+                       incoming().status == 'active' &&
+                       incoming().keys().hasAll(['title', 'description', 'category', 'region', 'goalCoins', 'raisedCoins', 'status', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['title', 'description', 'category', 'region', 'goalCoins', 'raisedCoins', 'status', 'createdBy', 'createdAt', 'updatedAt']) &&
+                       isValidDonationCampaign(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(campaignId) &&
+                       isValidDonationCampaign(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() || (
+                           existing().status == 'active' &&
+                           incoming().raisedCoins > existing().raisedCoins &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['raisedCoins', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isAdmin() && isValidId(campaignId);
+    }
+
+    match /donations/{donationId} {
+      allow get: if isSignedIn() && isValidId(donationId) && (
+        isAdmin() || existing().userId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() || resource.data.userId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() &&
+                       isValidId(donationId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'donorName', 'campaignId', 'campaignTitle', 'coinsDonated', 'message', 'createdAt']) &&
+                       incoming().keys().hasOnly(['userId', 'donorName', 'campaignId', 'campaignTitle', 'coinsDonated', 'message', 'createdAt']) &&
+                       isValidDonationRecord(incoming()) &&
+                       exists(/databases/$(database)/documents/donation_campaigns/$(incoming().campaignId)) &&
+                       get(/databases/$(database)/documents/donation_campaigns/$(incoming().campaignId)).data.status == 'active' &&
+                       getAfter(/databases/$(database)/documents/donation_campaigns/$(incoming().campaignId)).data.raisedCoins == get(/databases/$(database)/documents/donation_campaigns/$(incoming().campaignId)).data.raisedCoins + incoming().coinsDonated &&
+                       getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.coinBalance == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.coinBalance - incoming().coinsDonated;
+
+      allow update, delete: if false;
+    }
+
+    // --- 5. PAYOUT PROOFS & HELPING DONATIONS (ADMIN-POSTED, ALL USERS READ) ---
+    match /payout_proofs/{proofId} {
+      allow get: if isSignedIn() && isValidId(proofId) && (isAdmin() || existing().status == 'published');
+      allow list: if isSignedIn() && (isAdmin() || resource.data.status == 'published');
+
+      allow create: if isAdmin() &&
+                       isValidId(proofId) &&
+                       incoming().createdBy == request.auth.uid &&
+                       incoming().status == 'published' &&
+                       incoming().keys().hasAll(['title', 'proofType', 'recipientName', 'recipientUserId', 'amountDisplay', 'pkrAmount', 'region', 'description', 'imageUrl', 'presetArt', 'status', 'createdBy', 'createdAt']) &&
+                       incoming().keys().hasOnly(['title', 'proofType', 'recipientName', 'recipientUserId', 'amountDisplay', 'pkrAmount', 'region', 'description', 'imageUrl', 'presetArt', 'status', 'createdBy', 'createdAt']) &&
+                       isValidPayoutProof(incoming());
+
+      allow update: if isAdmin() &&
+                       isValidId(proofId) &&
+                       isValidPayoutProof(incoming()) &&
+                       incoming().createdBy == existing().createdBy &&
+                       incoming().createdAt == existing().createdAt;
+
+      allow delete: if isAdmin() && isValidId(proofId);
+    }
+
+    // --- 6. USER PROBLEM REPORTS & ADMIN SUPPORT ---
+    match /problem_reports/{reportId} {
+      allow get: if isSignedIn() && isValidId(reportId) && (isAdmin() || existing().userId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+                       isValidId(reportId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'open' &&
+                       incoming().adminReply == '' &&
+                       incoming().keys().hasAll(['userId', 'reporterName', 'category', 'subject', 'description', 'status', 'adminReply', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'reporterName', 'category', 'subject', 'description', 'status', 'adminReply', 'createdAt', 'updatedAt']) &&
+                       isValidProblemReport(incoming());
+
+      allow update: if isAdmin() &&
+                       isValidId(reportId) &&
+                       isValidProblemReport(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminReply', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(reportId);
+    }
+
+    // --- 7. WHATSAPP GIVEAWAY COIN ORDERS ---
+    match /coin_orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (
+        isAdmin() || existing().userId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() || resource.data.userId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() &&
+                       isValidId(orderId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'pending' &&
+                       incoming().adminNote == '' &&
+                       incoming().keys().hasAll(['userId', 'buyerName', 'packageName', 'coinsAmount', 'priceDisplay', 'whatsappRef', 'status', 'adminNote', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'buyerName', 'packageName', 'coinsAmount', 'priceDisplay', 'whatsappRef', 'status', 'adminNote', 'createdAt', 'updatedAt']) &&
+                       isValidCoinOrder(incoming());
+
+      allow update: if isAdmin() &&
+                       isValidId(orderId) &&
+                       isValidCoinOrder(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       existing().status == 'pending' &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    // --- 8. APP SETTINGS (WHATSAPP GROUP & TERMS/POLICIES) ---
+    match /app_settings/{settingId} {
+      allow get: if isSignedIn() && isValidId(settingId);
+      allow list: if false;
+
+      allow create: if isAdmin() &&
+                       isValidId(settingId) &&
+                       incoming().keys().hasAll(['whatsappGroupUrl', 'whatsappAdminContact', 'termsTitle', 'termsBody', 'giveawayPolicyBody', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['whatsappGroupUrl', 'whatsappAdminContact', 'termsTitle', 'termsBody', 'giveawayPolicyBody', 'updatedAt']) &&
+                       isValidAppConfig(incoming());
+
+      allow update: if isAdmin() &&
+                       isValidId(settingId) &&
+                       isValidAppConfig(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['whatsappGroupUrl', 'whatsappAdminContact', 'termsTitle', 'termsBody', 'giveawayPolicyBody', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // --- 9. ADMIN ACCESS GRANTS ---
+    match /admins/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       (incoming().passcode == '2+2=5' || incoming().passcode == '2+2=5:-)') &&
+                       incoming().keys().hasAll(['userId', 'passcode', 'grantedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'passcode', 'grantedAt']) &&
+                       isValidTimestamp(incoming().grantedAt);
+
+      allow update, delete: if false;
+    }
+  }
+}

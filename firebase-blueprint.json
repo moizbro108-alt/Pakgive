@@ -1,0 +1,258 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated PakGives user profile, Giveaway Coin wallet, and money payouts received.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "displayName": { "type": "string", "description": "Public display name." },
+        "email": { "type": "string", "description": "User email address (owner/admin only)." },
+        "coinBalance": { "type": "integer", "description": "Available Giveaway Coins." },
+        "totalDonatedCoins": { "type": "integer", "description": "Cumulative donated coins." },
+        "totalMoneyReceived": { "type": "integer", "description": "Cumulative PKR money payouts received from admins." },
+        "favoriteRegions": { "type": "array", "description": "Preferred regional origins (max 10)." },
+        "acceptedTerms": { "type": "boolean", "description": "Whether user accepted Terms & Policies." },
+        "role": { "type": "string", "enum": ["user"], "description": "Base role (immutable by non-admins)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "displayName", "email", "coinBalance", "totalDonatedCoins", "totalMoneyReceived", "favoriteRegions", "acceptedTerms", "role", "createdAt", "updatedAt"]
+    },
+    "FavoriteName": {
+      "title": "FavoriteName",
+      "description": "User-bookmarked regional name.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "originRegion": { "type": "string" },
+        "gender": { "type": "string", "enum": ["Boy", "Girl", "Unisex"] },
+        "meaning": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "originRegion", "gender", "meaning", "createdAt"]
+    },
+    "RegionalName": {
+      "title": "RegionalName",
+      "description": "Community-contributed regional origin name.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "script": { "type": "string" },
+        "pronunciation": { "type": "string" },
+        "originRegion": { "type": "string" },
+        "gender": { "type": "string", "enum": ["Boy", "Girl", "Unisex"] },
+        "meaning": { "type": "string" },
+        "culturalNote": { "type": "string" },
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "status": { "type": "string", "enum": ["approved", "featured", "pending"] },
+        "likesCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "script", "pronunciation", "originRegion", "gender", "meaning", "culturalNote", "userId", "authorName", "status", "likesCount", "createdAt", "updatedAt"]
+    },
+    "Giveaway": {
+      "title": "Giveaway",
+      "description": "Admin-posted online multiuser giveaway (1 ticket = 10 coins, 0 maxEntries = unlimited).",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "prizeTitle": { "type": "string" },
+        "regionTag": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "presetArt": { "type": "string" },
+        "entryCostCoins": { "type": "integer" },
+        "maxEntries": { "type": "integer", "description": "0 means unlimited tickets, >0 is the admin ticket limit." },
+        "entriesCount": { "type": "integer", "description": "Total tickets sold across all users." },
+        "status": { "type": "string", "enum": ["active", "completed", "cancelled"] },
+        "winnerUserId": { "type": "string" },
+        "winnerName": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "prizeTitle", "regionTag", "imageUrl", "presetArt", "entryCostCoins", "maxEntries", "entriesCount", "status", "winnerUserId", "winnerName", "createdBy", "createdAt", "updatedAt"]
+    },
+    "GiveawayEntry": {
+      "title": "GiveawayEntry",
+      "description": "User ticket purchase record (1 to infinity tickets in one batch).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "giveawayId": { "type": "string" },
+        "ticketCount": { "type": "integer" },
+        "coinsSpent": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "giveawayId", "ticketCount", "coinsSpent", "createdAt"]
+    },
+    "DonationCampaign": {
+      "title": "DonationCampaign",
+      "description": "Admin-posted community charity/donation campaign (no tickets).",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "region": { "type": "string" },
+        "goalCoins": { "type": "integer" },
+        "raisedCoins": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "category", "region", "goalCoins", "raisedCoins", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DonationRecord": {
+      "title": "DonationRecord",
+      "description": "User coin donation contribution (unlimited coins, no tickets).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "donorName": { "type": "string" },
+        "campaignId": { "type": "string" },
+        "campaignTitle": { "type": "string" },
+        "coinsDonated": { "type": "integer" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "donorName", "campaignId", "campaignTitle", "coinsDonated", "message", "createdAt"]
+    },
+    "PayoutProof": {
+      "title": "PayoutProof",
+      "description": "Admin-posted proof of giveaway prize, money payout, or helping donation.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "proofType": { "type": "string", "enum": ["Giveaway Proof", "Money Payout", "Helping Donation"] },
+        "recipientName": { "type": "string" },
+        "recipientUserId": { "type": "string" },
+        "amountDisplay": { "type": "string" },
+        "pkrAmount": { "type": "integer" },
+        "region": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "presetArt": { "type": "string" },
+        "status": { "type": "string", "enum": ["published"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "proofType", "recipientName", "recipientUserId", "amountDisplay", "pkrAmount", "region", "description", "imageUrl", "presetArt", "status", "createdBy", "createdAt"]
+    },
+    "ProblemReport": {
+      "title": "ProblemReport",
+      "description": "User-submitted problem report or support ticket.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "category": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_review", "resolved"] },
+        "adminReply": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "reporterName", "category", "subject", "description", "status", "adminReply", "createdAt", "updatedAt"]
+    },
+    "CoinOrder": {
+      "title": "CoinOrder",
+      "description": "Giveaway Coin purchase request via WhatsApp group.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "packageName": { "type": "string" },
+        "coinsAmount": { "type": "integer" },
+        "priceDisplay": { "type": "string" },
+        "whatsappRef": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "buyerName", "packageName", "coinsAmount", "priceDisplay", "whatsappRef", "status", "adminNote", "createdAt", "updatedAt"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global WhatsApp group links and Terms & Policies content.",
+      "type": "object",
+      "properties": {
+        "whatsappGroupUrl": { "type": "string" },
+        "whatsappAdminContact": { "type": "string" },
+        "termsTitle": { "type": "string" },
+        "termsBody": { "type": "string" },
+        "giveawayPolicyBody": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["whatsappGroupUrl", "whatsappAdminContact", "termsTitle", "termsBody", "giveawayPolicyBody", "updatedAt"]
+    },
+    "AdminGrant": {
+      "title": "AdminGrant",
+      "description": "Verified admin panel session credential.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "passcode": { "type": "string" },
+        "grantedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "passcode", "grantedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles, Giveaway Coin wallets, and money received."
+    },
+    "/users/{userId}/favorite_names/{nameId}": {
+      "schema": { "$ref": "#/entities/FavoriteName" },
+      "description": "Per-user saved regional names."
+    },
+    "/regional_names/{nameId}": {
+      "schema": { "$ref": "#/entities/RegionalName" },
+      "description": "Community-shared regional origin names."
+    },
+    "/giveaways/{giveawayId}": {
+      "schema": { "$ref": "#/entities/Giveaway" },
+      "description": "Admin-posted giveaways with ticket limits or unlimited tickets."
+    },
+    "/giveaways/{giveawayId}/entries/{entryId}": {
+      "schema": { "$ref": "#/entities/GiveawayEntry" },
+      "description": "Giveaway ticket purchase batches."
+    },
+    "/donation_campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/DonationCampaign" },
+      "description": "Admin-posted charity and donation campaigns."
+    },
+    "/donations/{donationId}": {
+      "schema": { "$ref": "#/entities/DonationRecord" },
+      "description": "User coin donation records (no tickets)."
+    },
+    "/payout_proofs/{proofId}": {
+      "schema": { "$ref": "#/entities/PayoutProof" },
+      "description": "Admin-posted proofs, money payouts, and helping donations."
+    },
+    "/problem_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/ProblemReport" },
+      "description": "User problem reports and admin responses."
+    },
+    "/coin_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/CoinOrder" },
+      "description": "WhatsApp group Giveaway Coin purchase orders."
+    },
+    "/app_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "Global WhatsApp group URL and Terms & Policies."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminGrant" },
+      "description": "Authorized admin records."
+    }
+  }
+}

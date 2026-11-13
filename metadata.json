@@ -1,0 +1,6 @@
+{
+  "name": "PakGives",
+  "description": "Multiuser Pakistani & regional origin name suggester with giveaways, donations, giveaway coins via WhatsApp, terms & policies, and an admin panel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
